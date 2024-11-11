@@ -1,0 +1,273 @@
+---
+title: "HOMEWORK 1"
+author: "Jorge Barcia & Paloma Núñez"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+``` 
+
+```{r}
+# Clear environment 
+rm(list = ls())
+# Set working directory
+setwd("C:/Users/JORGE/OneDrive/Escritorio/apuntes/Aprendizaje estadistico/Trabajo1/trabajo")
+``` 
+# Data Source 
+This project uses the [Adult dataset from UCI](https://archive.ics.uci.edu/dataset/2/adult)
+
+# Load Libraries 
+```{r message=FALSE, warning=FALSE}
+library(caret)
+library(corrplot)
+library(dplyr)
+library(factoextra)
+library(FactoMineR)
+library(gganimate)
+library(GGally)
+library(ggplot2)
+library(gifski)
+library(tidyr)
+library(tidyverse)
+``` 
+
+# Load and clean the dataset.
+Note that the dataset lacks a header, and missing values are represented as `?`. 
+We add column names and this dataset have leading or trailing spaces which were a problem in some parts of our project 
+therefore we needed to remove them
+
+```{r}
+#load data
+data = read.csv("adult.data", header = FALSE, na.strings = " ?")
+#lables
+colnames(data) = c("age", "workclass", "fnlwgt", "education", "education_num", "marital_status", "occupation", "relationship", 
+                   "race", "sex", "capital_gain", "capital_loss", "hours_per_week", 
+                   "native_country", "income")
+# Trim whitespace 
+data[] = lapply(data, function(x) if (is.character(x)) trimws(x) else x) 
+```
+first lets check the structure of our data
+```{r}
+str(data)
+``` 
+We can see that we have both numerical and categorical features.
+See also that we need to convert categorical columns to factors 
+
+```{r} 
+data = mutate(data, across(c(workclass, education, marital_status, occupation, relationship, race, sex, native_country,income)
+                           ,as.factor))
+
+```
+
+We need some of the factor in an specific order therefore we specify levels for `education`. 
+
+```{r} 
+data$education = factor(data$education, levels = c("Preschool", "1st-4th", "5th-6th", "7th-8th","9th",
+                                                   "10th", "11th", "12th", "HS-grad", "Some-college",
+                                                   "Assoc-acdm",
+                                                   "Assoc-voc", "Bachelors", "Masters", "Doctorate")) 
+```
+
+
+Lets see a summary of our data to have a first glance of the Na Values and other important information 
+
+```{r} 
+summary(data) 
+```
+
+## Feature Explanation
+not every label is intuitive so here there are some explanation we deem necessary
+
+- **fnlwgt**: the fnlwgt value indicates how many people in the entire population have similar characteristics to those of the record. The Census Bureau calculates these weights based on factors like age, race, gender, and region, allowing analysts to make inferences about the broader population without bias from the sampling 
+
+- **education_num**: corresponds to levels of education beeing 1 the lowest and 15 the highest
+
+- **capital_gain/loss**: Earnings/loss from capital assets.
+
+- **hours_per_week**: Weekly work hours.
+
+## Handling NA Values Visualizing missing values in each column.
+
+For seeing clearly the Number NA values and were are they located
+
+```{r}
+sum(is.na(data))
+sapply(data, function(x) sum(is.na(x)))
+```
+
+Lets plot this info
+
+```{r} 
+na_counts = sapply(data, function(x) sum(is.na(x))) 
+aux_df = data.frame(Column = names(na_counts), NA_Count = na_counts)
+
+ggplot(aux_df) +
+  aes(x = reorder(Column, -NA_Count), y = NA_Count) +
+  geom_bar(stat = "identity", fill = "pink") + 
+  labs(title = "Number of NA Values", x = "Columns", y = "Count of NA Values") + 
+  theme(axis.text.x = element_text(angle = 40, hjust = 1)) 
+
+```
+
+we can see that all of the NA values are in categorical features taking into acount that we have a fairly large dataset
+the best option is to omit these values as no substitution of these values will be satisfactory 
+
+```{r}
+data = na.omit(data)
+```
+
+
+## Feature Engineering Creating additional categorical features.
+
+`Age` is a useful statistic however for some parts of our project we are not interested in the exact age and the `age group` is much more useful
+similarly to age we have the case of `worked hours`, we are interested in seeing if overworking or part-timing has an influence.
+As the country of origin is EEUU we want to know if the `native born` have any advantage
+
+```{r} 
+data = mutate(data, age_group = case_when(age < 25 ~ "Young", age >= 25 & age < 45 ~ "Adult", 
+                                          age >= 45 & age < 65 ~ "Middle-aged", age >= 65 ~ "Senior"))
+
+data$age_group = as.factor(data$age_group) 
+data = mutate(data, work_hours_category = case_when(hours_per_week < 30 ~ "Part-time",
+                                                    hours_per_week >= 30 & hours_per_week <= 40 ~ "Full-time", 
+                                                    hours_per_week > 40 ~ "Over-time")) 
+data$work_hours_category = as.factor(data$work_hours_category)
+
+data$foreign_born = ifelse(data$native_country == 'United-States', 0, 1) 
+```
+
+## Outlier Detection 
+
+  **Using boxplots**
+
+Now we will check for outliers that could ruin our analysis 
+note that we can only have outliers in our numerical features
+
+```{r} 
+numeric_cols = select(data, age, capital_gain, capital_loss, hours_per_week) 
+numeric_cols_long = pivot_longer(numeric_cols, cols = everything(), names_to = "Variable", values_to = "Value") 
+ggplot(numeric_cols_long) +
+  aes(x = Variable, y = Value, fill = Variable) +
+  geom_boxplot(outlier.color = "lightcoral", outlier.size = 4) + 
+  labs(title = "Outliers in Numerical Columns", x = "Variables", y = "Value") + 
+  theme_minimal() + theme(axis.text.x = element_text(hjust = 0.5), legend.position = "none")+
+  facet_wrap(~ Variable, scales = "free")
+```
+
+  **Using 3-sigma rule**
+
+
+```{r}
+detect_outliers_3sigma = function(x) {
+  mean_x = mean(x, na.rm = TRUE)
+  sd_x = sd(x, na.rm = TRUE)
+  lower_bound = mean_x - 3 * sd_x
+  upper_bound = mean_x + 3 * sd_x
+  return(x < lower_bound | x > upper_bound)
+}
+outliers = data.frame(
+  age = detect_outliers_3sigma(numeric_cols$age),
+  capital_gain = detect_outliers_3sigma(numeric_cols$capital_gain),
+  capital_loss = detect_outliers_3sigma(numeric_cols$capital_loss),
+  hours_per_week = detect_outliers_3sigma(numeric_cols$hours_per_week)
+)
+outlier_counts = sapply(outliers, sum)
+outlier_counts
+```
+from the analysis we infer that `age` outliers are feasible 17-90 as min and max are acceptable values in `capital_gain` there's a few top outliers with a value of 99,999$ this suggests that this is the maximum value accepted for the survey how ever as the real value is higher than this value we are going to leave these outliers. `capital_loss` does not have this problem and the value of the outliers is feasible `hours_per_week` is a especial case as 99 seem to be the maximum value similarly to what happens in capital_gain how ever here more than 99h a week seem inhumane, however as the dataset is from EEUU and from 1994 we can not rule out the possibility of these are true values and the subjet has two jobs
+
+
+
+## Visualization Tools Exploring distributions and relationships. 
+
+# Age Distribution
+
+we are going to start with the `age` visualization to see if our distribution is normal and if the  +50k and -50k have te same distribution:
+
+
+```{r} 
+p_age_dist = ggplot(data) +
+  aes(x = age, fill = age_group) +
+  geom_bar(color = "black") +
+  labs(title = "Distribution of Age", x = "Age", y = "Count", fill = "Age Group") +
+  theme_minimal()
+
+# Animate by income level
+p_age_dist + transition_states(income, transition_length = 0.5, state_length = 2) +
+  labs(subtitle = "Income Level: {closest_state}")
+```
+we see that the `+50k` group  have a geometrical distribution center around 40 years while the `-50k` is center around 25 and skewed to the right 
+
+## Income by Weekly Hours 
+
+one the questions we want to answer is that if the `hours worked per week` have an impact in the income and if this changes through out the age groups:
+
+
+```{r}
+p = ggplot(data) +
+  aes(x = income, y = hours_per_week, fill = income) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("lightpink", "lightgreen")) +
+  labs(title = "Weekly Hours Worked by Income Level", x = "Income", y = "Hours per Week") +
+  theme_minimal()+
+  theme(title = element_text(size = 15))
+
+p + transition_states(age_group, transition_length = 1.5, state_length = 1.5) +
+    labs(subtitle = "Age Group: {closest_state}") 
+```
+we see that both groups have similar means how ever the `+50k` group is more spread than the `-50K` and the differences max out in the senior group
+
+## Income by Education Level
+
+lets check if `education` have an impact 
+```{r} 
+ggplot(data, aes(x = education, fill = income)) + geom_bar(position = "dodge", color = "black") + scale_fill_manual(values = c("lightpink", "lightgreen")) + labs(title = "Income Distribution by Education Level", x = "Education Level", y = "Count") + theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+```
+
+from the graph we can see that the amount of people without `HS-graduation` that make more than `50K` are almost non-existing
+similarly `Bachelors degree` seems to be the high level of study that is significant as from that point if you have 
+masters or doctorates there are more people that make more than `+50k` than people that don't in that specific group 
+
+## Correlation analisis
+
+Using a correlation plot `corrplot`, we visualize the strength and direction of these associations, we also added a heat map to see better 
+what pairs are related 
+
+```{r} 
+numeric_data = select(data, age, fnlwgt, education_num, capital_gain, capital_loss, hours_per_week)
+
+correlations = cor(numeric_data,method="spearman")
+corrplot(correlations, number.cex = .9, method = "square", 
+         hclust.method = "ward", order = "FPC",
+         type = "lower", tl.cex=0.8,tl.col = "black")
+heatmap(cor(numeric_data))
+```
+
+We see that there is not a strong correlation between any of the numerical variables, this is good for our final analysis as each one of them will give us different information to our analysis and not the same information over an over again as will be the case if we had really strong correlations for all the pairs therefore we avoid overlapping information and multicollinearity
+
+
+Now lets check the correlation with the categorical variable `income`
+
+```{r} 
+ggpairs(data, columns = c("age", "education_num", "capital_gain", "capital_loss", "hours_per_week"),
+        aes(color = income, alpha = 0.5),
+        upper = list(continuous = "points"),
+        lower = list(continuous = "smooth")) +
+  theme_minimal() +
+  labs(title = "Correlation with the categorical variable income")
+```
+
+## PCA
+
+pca_data = select(data,age, education_num, capital_gain, capital_loss, hours_per_week)
+
+#esta parte del codigo no hace falta 
+data_encoded <- data %>%
+  mutate(across(c(age_group, work_hours_category), as.factor))
+#esta 
+#siguiente paso es encoding 
