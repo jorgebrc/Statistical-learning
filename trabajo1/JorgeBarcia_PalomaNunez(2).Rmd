@@ -28,8 +28,8 @@ We have also used the notebooks provided in class
 # Clear environment 
 rm(list = ls())
 # Set working directory
-setwd("C:/Users/JORGE/OneDrive/Escritorio/apuntes/Aprendizaje estadistico/Trabajo1/trabajo2")
- 
+#setwd("C:/Users/JORGE/OneDrive/Escritorio/apuntes/Aprendizaje estadistico/Trabajo1/trabajo2")
+#setwd("~/Statistical-learning/trabajo1")
 ``` 
 
 ```{r message=FALSE, warning=FALSE}
@@ -231,7 +231,7 @@ heatmap(cor(numeric_cols))
 
 We can see we have some strong positive correlation along the diagonal and strong negative correlation in the corner 
 
-Lets see the distribution of Life `Expectancy` for developed and developing countries 
+Lets see the distribution of `Life Expectancy` for developed and developing countries 
 
 ```{r}
 ggplot(data) +
@@ -241,7 +241,7 @@ ggplot(data) +
        x = "Life Expectancy", y = "Count") +
   theme_minimal() +
   scale_fill_manual(values = c("lightgreen", "lightpink")) +
-  transition_states(Status, transition_length = 0.5, state_length = 2) +
+  transition_states(Status, transition_length = 0.5, state_length = 1) +
   labs(subtitle = "Development Level: {closest_state}")
 ```
 
