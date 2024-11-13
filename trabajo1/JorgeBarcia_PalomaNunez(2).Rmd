@@ -1,0 +1,569 @@
+---
+title: "HOMEWORK 1"
+author: "Jorge Barcia & Paloma Núñez"
+output: html_document
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Bibliografia provisional
+
+#map
+https://r-spatial.org/r/2018/10/25/ggplot2-sf.html
+#animations
+https://gganimate.com/
+#3D graph
+https://r-graph-gallery.com/3d_scatter_plot.html
+#embed 3D graph to html
+https://stackoverflow.com/questions/63595786/rmarkdown-how-to-embed-an-3d-plot
+
+We have also used the notebooks provided in class
+
+
+
+
+```{r}
+# Clear environment 
+rm(list = ls())
+# Set working directory
+setwd("C:/Users/JORGE/OneDrive/Escritorio/apuntes/Aprendizaje estadistico/Trabajo1/trabajo2")
+ 
+``` 
+
+```{r message=FALSE, warning=FALSE}
+library(caret)
+library(corrplot)
+library(dplyr)
+library(factoextra)
+library(FactoMineR)
+library(gganimate)
+library(GGally)
+library(ggplot2)
+library(gifski)
+library(psych)
+library(rgl)
+library(rmarkdown)
+library(rnaturalearth)
+library(tidyr)
+library(tidyverse)
+``` 
+# Data Source 
+This project uses the [Life Expectancy Data](https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who)
+```{r}
+data = read.csv("Life Expectancy Data.csv")
+```
+
+first lets check the structure of our data
+```{r}
+str(data)
+``` 
+We can see that we have both numerical and categorical features.
+See also that we need to convert categorical columns to factors 
+
+```{r} 
+data = mutate(data, across(c(Country, Status),as.factor))
+```
+1. **country**: 
+    - **Description**: The name of the country for which the life expectancy and other health indicators are reported.
+    
+2. **year**: 
+    - **Description**: The year in which the data was recorded.
+    
+3. **status**: 
+    - **Description**: The status of the country in terms of development, indicating whether the country is classified as developed or developing.
+    
+4. **life_expectancy**: 
+    - **Description**: The average life expectancy of people in a country for a given year. 
+    
+5. **adult_mortality**: 
+    - **Description**: The number of adult deaths (per 1,000 adults) due to various factors such as disease, accidents, and other causes. 
+    
+6. **infant_deaths**: 
+    - **Description**: The number of infant deaths (per 1,000 live births) in a given year. 
+    
+7. **alcohol**: 
+    - **Description**: The average amount of alcohol consumed per person (in liters of pure alcohol) in a given year.
+    
+8. **percentage_expenditure**: 
+    - **Description**: The percentage of a country's GDP spent on healthcare in a given year.
+    
+9. **hepatitis_b**: 
+    - **Description**: The percentage of infants that were vaccinated against Hepatitis B.
+  
+10. **measles**: 
+    - **Description**: The number of reported cases of measles per 1,000 people in a given year. 
+    
+11. **BMI (Body Mass Index)**: 
+    - **Description**: The average BMI (Body Mass Index) of the population of a given country, which is used to determine whether individuals are underweight, normal weight, overweight, or obese.
+  
+12. **under-five_deaths**: 
+    - **Description**: The number of deaths per 1,000 live births of children under the age of 5.
+  
+13. **polio**: 
+    - **Description**: The percentage of infants vaccinated against polio in a given year. 
+  
+14. **total_expenditure**: 
+    - **Description**: The total amount of health expenditure (in US dollars) per person in a given year. 
+  
+15. **diphtheria**: 
+    - **Description**: The percentage of infants vaccinated against Diphtheria in a given year. 
+  
+16. **hiv_aids**: 
+    - **Description**: The number of deaths (per 100,000 people) due to HIV/AIDS in a given year. 
+  
+17. **gdp**: 
+    - **Description**: The Gross Domestic Product (GDP) of a country per capita in USD. 
+  
+18. **population**:
+    - **Description**: The total population of the country for the given year. 
+  
+19. **thinness_1_19_years**: 
+    - **Description**: The percentage of the population between 1 and 19 years old that is considered undernourished or thin (measured by BMI). 
+
+20. **thinness_5_9_years**: 
+    - **Description**: The percentage of the population between 5 and 9 years old that is considered undernourished or thin (measured by BMI). 
+
+21. **income_composition_of_resources**: 
+    - **Description**: A composite index of income composition of resources, which measures the percentage of income that is available for investing in healthcare and other welfare. 
+
+22. **schooling**: 
+    - **Description**: The average number of years of schooling received by people in the country. 
+
+
+## Handling NA Values Visualizing missing values in each column.
+
+Lets see a summary of our data to have a first glance of the Na Values and other important information 
+
+```{r} 
+summary(data)
+```
+
+For seeing clearly the Number NA values and were are they located
+
+```{r}
+sum(is.na(data))
+
+sapply(data, function(x) sum(is.na(x)))
+```
+
+Lets plot this info
+
+```{r} 
+na_counts = sapply(data, function(x) sum(is.na(x))) 
+aux_df = data.frame(Column = names(na_counts), NA_Count = na_counts)
+
+ggplot(aux_df) +
+  aes(x = reorder(Column, -NA_Count), y = NA_Count) +
+  geom_bar(stat = "identity", fill = "pink") + 
+  labs(title = "Number of NA Values", x = "Columns", y = "Count of NA Values") + 
+  theme(axis.text.x = element_text(angle = 40, hjust = 1)) 
+
+```
+
+As our missing values are in numerical variables we will try imputation methods
+
+```{r}
+# Loop through each column
+for (col in names(data)) {
+  if (is.numeric(data[[col]])) {
+    # Impute missing values with the column mean
+    data[[col]][is.na(data[[col]])] = mean(data[[col]], na.rm = TRUE)
+  }
+}
+
+```
+
+## Feature Engineering 
+
+```{r}
+# Create a life expectancy category based on cut-offs
+data$Life_Expectancy_Category = cut(data$Life.expectancy, 
+                                     breaks = c(0, 50, 70, 100),
+                                     labels = c("Low", "Medium", "High"))
+# Average vaccination rates.
+data$AVG_vac = rowMeans(cbind(data$Hepatitis.B,data$Polio,data$Diphtheria))
+# we remove individual vac rates 
+data$Hepatitis.B = NULL
+data$Polio = NULL
+data$Diphtheria = NULL
+# avoid multicollinearity with BMI
+data$thinness..1.19.years = NULL
+data$thinness.5.9.years = NULL
+
+
+```
+
+## Visualization Tools Exploring distributions and relationships. 
+
+GDP map
+
+```{r}
+gdp_data = select(data,Country, Year, GDP)
+world = ne_countries(scale = "medium", returnclass = "sf")
+gdp_data = rename(gdp_data,name = Country)
+
+world_gdp = left_join(world,gdp_data, by = "name")
+  
+ggplot(world_gdp) +
+  geom_sf(aes(fill = GDP)) +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey50", name = "GDP") +
+  labs(title = "GDP by Country") +
+  theme_minimal() 
+```
+
+
+  **Correlation analisis**
+
+Using a correlation plot `corrplot`, we visualize the strength and direction of these associations, we also added a heat map to see better 
+what pairs are related 
+
+```{r}
+numeric_cols =select(data,-Country, -Status,-Life_Expectancy_Category)
+
+correlations = cor(numeric_cols,method="spearman")
+corrplot(correlations, number.cex = .9, method = "square", 
+         hclust.method = "ward", order = "FPC",
+         type = "lower", tl.cex=0.8,tl.col = "black")
+heatmap(cor(numeric_cols))
+```
+
+We can see we have some strong positive correlation along the diagonal and strong negative correlation in the corner 
+
+Lets see the distribution of Life `Expectancy` for developed and developing countries 
+
+```{r}
+ggplot(data) +
+  aes(x = Life.expectancy, fill = Status) +  
+  geom_histogram(bins = 30, color = "black") +
+  labs(title = "Distribution of Life Expectancy by Development Level",
+       x = "Life Expectancy", y = "Count") +
+  theme_minimal() +
+  scale_fill_manual(values = c("lightgreen", "lightpink")) +
+  transition_states(Status, transition_length = 0.5, state_length = 2) +
+  labs(subtitle = "Development Level: {closest_state}")
+```
+
+lets see how is `Schooling` correlated with `Life Expectancy` and where are the developed countries alocated 
+
+```{r}
+ggplot(data) +
+   aes(x = Schooling, y = Life.expectancy, color = Status) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +
+  theme_minimal() +
+  labs(title = "Life Expectancy vs Schooling",
+       x = "Schooling (Years)", y = "Life Expectancy", color = "Status") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+lets see how the `Life Expectancy` has shifted to higher values over the years 
+
+```{r}
+data$Year = as.integer(data$Year)
+ggplot(data) +
+  aes(x = Life.expectancy, fill = Life_Expectancy_Category) +
+  geom_histogram(binwidth = 2, color = "black", alpha = 0.7) +
+  labs(title = "Distribution of Life Expectancy: Year {frame_time}",
+       x = "Life Expectancy", y = "Count", fill = "Life Expectancy") +
+  theme_minimal() +
+  transition_time(Year) +
+  ease_aes('linear')
+```
+
+We can see how the red values slowly disappear and how the plot shifts to the right 
+
+
+## Outlier Detection 
+
+As we are using a highly reliable dataset outliers may not necessarily be errors or irrelevant data points. Instead, they might represent meaningful extreme values so we are going to only to erase the ouliers that are impossible for example the categories that are over 1000 and have +1000 values
+
+```{r}
+data = data[data$infant.deaths <= 1000, ]
+data = data[data$Measles <= 1000, ]
+data = data[data$under.five.deaths <= 1000, ]
+```
+
+  **Using boxplots**
+
+Now we will check for outliers that could ruin our analysis 
+note that we can only have outliers in our numerical features
+
+```{r} 
+numeric_cols =select(data,-Country, -Status,-Life_Expectancy_Category)
+numeric_cols_long = pivot_longer(numeric_cols, cols = everything(), names_to = "Variable", values_to = "Value") 
+ggplot(numeric_cols_long) +
+  aes(x = Variable, y = Value, fill = Variable) +
+  geom_boxplot(outlier.color = "red", outlier.size = 1) + 
+  labs(title = "Outliers in Numerical Columns", x = "Variables", y = "Value") + 
+  theme_minimal() + theme(axis.text.x = element_text(hjust = 0.5), legend.position = "none")+
+  facet_wrap(~ Variable, scales = "free")
+```
+
+**Using 3-sigma rule**
+
+```{r}
+detect_outliers_3sigma = function(x) {
+  mean_x = mean(x, na.rm = TRUE)
+  sd_x = sd(x, na.rm = TRUE)
+  lower_bound = mean_x - 3 * sd_x
+  upper_bound = mean_x + 3 * sd_x
+  return(x < lower_bound | x > upper_bound)
+}
+outliers = data.frame(
+  Year = detect_outliers_3sigma(data$Year),
+  Life.expectancy = detect_outliers_3sigma(data$Life.expectancy),
+  Adult.Mortality = detect_outliers_3sigma(data$Adult.Mortality),
+  infant.deaths = detect_outliers_3sigma(data$infant.deaths),
+  Alcohol = detect_outliers_3sigma(data$Alcohol),
+  percentage.expenditure = detect_outliers_3sigma(data$percentage.expenditure),
+  Measles = detect_outliers_3sigma(data$Measles),
+  BMI = detect_outliers_3sigma(data$BMI),
+  under.five.deaths = detect_outliers_3sigma(data$under.five.deaths),
+  Total.expenditure = detect_outliers_3sigma(data$Total.expenditure),
+  HIV.AIDS = detect_outliers_3sigma(data$HIV.AIDS),
+  GDP = detect_outliers_3sigma(data$GDP),
+  Population = detect_outliers_3sigma(data$Population),
+  Income.composition.of.resources = detect_outliers_3sigma(data$Income.composition.of.resources),
+  Schooling = detect_outliers_3sigma(data$Schooling),
+  AVG_vac = detect_outliers_3sigma(data$AVG_vac)
+)
+outlier_counts = sapply(outliers, sum)
+outlier_counts
+```
+
+we can not be sure if the data is wrong or a extreme reality so we are going to remove every outlier.
+
+```{r}
+data = data[!apply(outliers, 1, any), ]
+```
+
+
+## PCA
+
+Preprocesing for the PCA
+
+```{r}
+PCA_data = data
+#remove the features we created to do the plots 
+PCA_data$Life_Expectancy_Category = NULL
+#remove non numerical data
+PCA_data$Country = NULL
+PCA_data$Year = NULL
+PCA_data$Status = NULL
+```
+
+Perform PCA
+
+```{r}
+pca = prcomp(PCA_data, scale. = TRUE)
+
+# View PCA summary
+summary(pca)
+
+fviz_eig(pca, addlabels = TRUE, ylim = c(0, 45), geom = c("bar", "line"), 
+         barfill = "pink", barcolor = "grey", linecolor = "red", ncp = 10) +
+  labs(title = "PCA - Variance Explained", x = "Principal Components", y = "% of Variance")
+```
+
+```{r}
+# Visualize variable contributions to the first component
+fviz_contrib(pca, choice = "var", axes = 1, fill = "pink", color = "grey", top = 10)
+# Visualize variable contributions to the second component
+fviz_contrib(pca, choice = "var", axes = 2, fill = "skyblue", color = "grey", top = 10)
+# Visualize variable contributions to the second component
+fviz_contrib(pca, choice = "var", axes = 3, fill = "lightgreen", color = "grey", top = 10)
+# Visualize variable contributions to the second component
+fviz_contrib(pca, choice = "var", axes = 4, fill = "lightcoral", color = "grey", top = 10)
+```
+we see that PC1 has more variables contributing less while PC2,PC3 and PC4 has one or two variables contributing more for example in PC4 `Total Expenditure` has almost 50% of the contribution
+
+Note that with 4 components we explain 66% of the variability
+
+# rank countries by PCA
+
+PC1
+```{r}
+names = data$Country
+ordered_indices = order(pca$x[, 1])
+
+best_performers = data.frame(
+  Country = data$Country[ordered_indices][(length(names) - 5):length(names)][rev(seq_len(6))],
+  Year = data$Year[ordered_indices][(length(names) - 5):length(names)][rev(seq_len(6))]
+)
+
+worst_performers <- data.frame(
+  Country = data$Country[ordered_indices][1:10],
+  Year = data$Year[ordered_indices][1:10]
+)
+
+print(worst_performers)
+
+print(best_performers)
+
+```
+PC2
+```{r}
+names = data$Country
+ordered_indices = order(pca$x[, 2])
+
+worst_performers = data.frame(
+  Country = data$Country[ordered_indices][(length(names) - 5):length(names)],
+  Year = data$Year[ordered_indices][(length(names) - 5):length(names)]
+)
+
+best_performers <- data.frame(
+  Country = data$Country[ordered_indices][1:10],
+  Year = data$Year[ordered_indices][1:10]
+)
+
+print(worst_performers)
+
+print(best_performers)
+
+```
+
+Lets visualize the top-10 Countries contributions to first component:
+
+```{r}
+names_order = names[order(get_pca_ind(pca)$contrib[,1],decreasing=T)]
+combined_labels = paste(names_order, data$Year[order(get_pca_ind(pca)$contrib[, 1], decreasing = TRUE)], sep = " - ")
+
+fviz_contrib(pca, choice = "ind", axes = 1, top=10)+scale_x_discrete(labels=combined_labels)
+```
+From this we can see that the worst Countries are the ones that are contributing more to the total Variance and that contributions are not equaly distribute through the observations 
+
+
+Lets see if PC can help use to predict if a country is developed or developing
+
+```{r}
+#2D Data Frame
+pca_plot_data = data.frame(
+  PC1 = -pca$x[, 1],  
+  PC2 = pca$x[, 2],
+  Category = data$Life_Expectancy_Category
+)
+#2D plot 
+ggplot(pca_plot_data, aes(x = -PC1, y = PC2, label = Category, color = Category)) +
+  geom_point(size = 0.5) +
+  labs(title = "PCA - Life Expectancy Data", x = "Principal Component 1", y = "Principal Component 2") +
+  theme_bw() +
+  scale_color_manual(values = c("darkred", "darkorange","darkgreen")) +
+  theme(legend.position = "bottom") +
+  geom_text(size = 2, hjust = 0.6, vjust = 0, check_overlap = TRUE)
+```
+with PC1 and PC2 we can see that we may be able to predict it lets add PC3 and PC4 (as size) to see if helps 
+
+```{r}
+#4D data frame
+pca_3d_data = data.frame(
+  PC1 = pca$x[, 1],
+  PC2 = pca$x[, 2],
+  PC3 = pca$x[, 3],
+  PC4 = pca$x[, 4],
+  Category = data$Life_Expectancy_Category
+)
+#color
+category_colors = ifelse(pca_3d_data$Category == "High", "darkgreen",
+                          ifelse(pca_3d_data$Category == "Medium", "darkorange", "darkred"))
+
+#size
+pca_3d_data$PC4_normalized = scales::rescale(pca_3d_data$PC4)
+#4D plot 
+open3d()
+plot3d(
+  x = pca_3d_data$PC1,
+  y = pca_3d_data$PC2,
+  z = pca_3d_data$PC3,
+  col = category_colors,
+  type = "s",
+  size = pca_3d_data$PC4_normalized * 5,
+  xlab = "PC1",      
+  ylab = "PC2",      
+  zlab = "PC3",      
+  main = "3D PCA Plot of Life Expectancy Data"
+)
+legend3d("topright", legend = c("Low", "Medium","High"), 
+         col = c("darkred", "darkorange","darkgreen"), pch = 16, cex = 1)
+#for rendering in html format
+rglwidget()
+```
+
+from the 3D plot we see that we could predict the `Life Expectancy` with PC1, PC2, PC3 and PC4 
+and taking into acount that with PC4 we can explain almost up to 66% of the variance we can say that we have successfully reduced the dimensionality from 17 to only 4 
+
+## Factor Analysis
+
+Factor analysis is a statistical method used to identify underlying relationships between variables by grouping them into "factors," which represent shared patterns making it useful for exploring and modeling complex datasets.
+
+
+FA data preprecesing
+
+```{r}
+fa_data = data
+#remove the features we created 
+fa_data$Life_Expectancy_Category = NULL
+#remove non numerical data and unimportant data for the FA
+fa_data$Country = NULL
+fa_data$Year = NULL
+fa_data$Status = NULL
+#Check for Multicollinearity
+cor_matrix = cor(fa_data)
+high_corr = findCorrelation(cor_matrix, cutoff = 0.9)  
+fa_data = fa_data[, -high_corr]
+```
+
+lets see the scree plot 
+
+```{r}
+screepl = fa.parallel(fa_data,fm = "ml",fa = "fa")
+```
+perform FA and lets plot the loadings and Uniqueness to better understand what we have 
+
+```{r}
+fa_result = factanal(fa_data, factors = 6, rotation="varimax", scores="Bartlett", lower = 0.01)
+
+fa_result
+
+cbind(fa_result$loadings, "Uniqueness" = fa_result$uniquenesses)
+```
+
+
+
+Loading close to +-1 means that that variable is really well explained by that specific factor a loading close to 0 means that is bad explained, this means that `Life expectancy` is really well explained by factor 1 but not so good by factor 4.
+If we focus on the uniqueness we can see that for example the proportion of variance we can not explain from `Life Expectancy` is 8% 
+however for `Population` is 89% which means that it can not be explained by a linear combination of these factors. We see that our model with 4 factors can explain 52% of the variance therefore we will need to add more factors for better representing the model which is no really ideal.
+There are some variables that seems to be behave independently on the dataset like`Population`and `Measle` as even using 6 factors their uniqueness is still high. so we are going to try again without these variables 
+
+```{r}
+fa_data$AVG_vac = NULL
+fa_data$Population = NULL
+fa_data$Total.expenditure = NULL
+fa_data$Measles = NULL
+
+fa_result2 = factanal(fa_data, factors = 3, rotation="varimax", scores="Bartlett", lower = 0.01)
+
+fa_result2
+
+cbind(fa_result2$loadings, "Uniqueness" = fa_result2$uniquenesses)
+```
+
+We see now that without these variables we get better proportion of variance explained (61%) with less Factors 3
+
+## Conclusion of FA
+
+In our `factor analysis`, we observed that certain variables, such as `Population` and `Measles`, consistently showed high uniqueness values across various models. This suggests that these variables behave independently and are not well-explained by a linear combination of factors derived from the other variables in the dataset. Consequently, we excluded these variables to improve model coherence and the overall explained variance.
+After removing these independent variables, our refined model with 3 factors was able to explain 61% of the total variance in the dataset, a notable improvement with fewer factors. This indicates a more efficient model structure, with cohesive underlying patterns among the remaining variables.
+For the specific purpose of predicting `Life Expectancy`, we found that using only 2 factors in the model could explain up to 94% of the variance in this variable
+
+## Clustering tools
+
+
+
+
+
+
+
+
+
