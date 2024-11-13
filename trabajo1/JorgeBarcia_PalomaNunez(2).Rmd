@@ -381,7 +381,7 @@ we see that PC1 has more variables contributing less while PC2,PC3 and PC4 has o
 
 Note that with 4 components we explain 66% of the variability
 
-# rank countries by PCA
+# Rank countries by PCA
 
 PC1
 ```{r}
@@ -456,6 +456,7 @@ ggplot(pca_plot_data, aes(x = -PC1, y = PC2, label = Category, color = Category)
 with PC1 and PC2 we can see that we may be able to predict it lets add PC3 and PC4 (as size) to see if helps 
 
 ```{r}
+#this plot may work slow in some computers however we have try with ours and it worked fine
 #4D data frame
 pca_3d_data = data.frame(
   PC1 = pca$x[, 1],
