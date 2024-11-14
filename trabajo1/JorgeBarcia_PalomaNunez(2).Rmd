@@ -31,6 +31,7 @@ setwd("C:/Users/JORGE/OneDrive/Escritorio/apuntes/Aprendizaje estadistico/Trabaj
 
 ```{r message=FALSE, warning=FALSE}
 library(caret)
+library(cluster)
 library(corrplot)
 library(dplyr)
 library(factoextra)
@@ -39,6 +40,7 @@ library(gganimate)
 library(GGally)
 library(ggplot2)
 library(gifski)
+library(mclust)
 library(psych)
 library(rgl)
 library(rmarkdown)
@@ -198,19 +200,19 @@ data$thinness.5.9.years = NULL
 
 ## Visualization Tools. Exploring distributions and relationships.
 
-GDP map
+`Life Expectancy` map
 
 ```{r}
-gdp_data = select(data,Country, Year, GDP)
+lex_data = select(data,Country, Year, Life.expectancy)
 world = ne_countries(scale = "medium", returnclass = "sf")
-gdp_data = rename(gdp_data,name = Country)
+lex_data = rename(lex_data,name = Country)
 
-world_gdp = left_join(world,gdp_data, by = "name")
+world_gdp = left_join(world,lex_data, by = "name")
   
 ggplot(world_gdp) +
-  geom_sf(aes(fill = GDP)) +
-  scale_fill_viridis_c(option = "plasma", na.value = "grey50", name = "GDP") +
-  labs(title = "GDP by Country") +
+  geom_sf(aes(fill = Life.expectancy)) +
+  scale_fill_viridis_c(option = "turbo", na.value = "grey50", name = "Life Expectancy",direction = -1) +
+  labs(title = "Life Expectancy by Country") +
   theme_minimal() 
 ```
 
@@ -555,6 +557,17 @@ For the specific purpose of predicting `Life Expectancy`, we found that using on
 
 ## Clustering tools
 
+We are going to start with 3 clusters to mach our Categories for `Life Expectancy`
+
+```{r}
+X = select(data,-Country,-Year,-Status,-Life_Expectancy_Category)
+k = 3
+
+fit = kmeans(scale(X),k, nstart = 1000) 
+
+groups = fit$cluster
+barplot(table(groups), col="blue")
+```
 
 
 
