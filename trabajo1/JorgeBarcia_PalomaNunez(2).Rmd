@@ -19,17 +19,14 @@ https://r-graph-gallery.com/3d_scatter_plot.html
 #embed 3D graph to html
 https://stackoverflow.com/questions/63595786/rmarkdown-how-to-embed-an-3d-plot
 
-We have also used the notebooks provided in class
-
-
-
+We have also used the notebooks provided in class.
 
 ```{r}
 # Clear environment 
 rm(list = ls())
 # Set working directory
-#setwd("C:/Users/JORGE/OneDrive/Escritorio/apuntes/Aprendizaje estadistico/Trabajo1/trabajo2")
-#setwd("~/Statistical-learning/trabajo1")
+setwd("C:/Users/JORGE/OneDrive/Escritorio/apuntes/Aprendizaje estadistico/Trabajo1/trabajo2")
+ 
 ``` 
 
 ```{r message=FALSE, warning=FALSE}
@@ -49,22 +46,27 @@ library(rnaturalearth)
 library(tidyr)
 library(tidyverse)
 ``` 
+
 # Data Source 
 This project uses the [Life Expectancy Data](https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who)
+
 ```{r}
 data = read.csv("Life Expectancy Data.csv")
 ```
 
-first lets check the structure of our data
+First, lets check the structure of our data.
+
 ```{r}
 str(data)
 ``` 
+
 We can see that we have both numerical and categorical features.
-See also that we need to convert categorical columns to factors 
+See also that we need to convert categorical columns to factors.
 
 ```{r} 
 data = mutate(data, across(c(Country, Status),as.factor))
 ```
+
 1. **country**: 
     - **Description**: The name of the country for which the life expectancy and other health indicators are reported.
     
@@ -131,16 +133,15 @@ data = mutate(data, across(c(Country, Status),as.factor))
 22. **schooling**: 
     - **Description**: The average number of years of schooling received by people in the country. 
 
+## Handling NA Values. Visualizing missing values in each column.
 
-## Handling NA Values Visualizing missing values in each column.
-
-Lets see a summary of our data to have a first glance of the Na Values and other important information 
+Let's see a summary of our data to have a first glance of the NA Values and other important information.
 
 ```{r} 
 summary(data)
 ```
 
-For seeing clearly the Number NA values and were are they located
+In order to see clearly the Number NA values and where they are located.
 
 ```{r}
 sum(is.na(data))
@@ -148,7 +149,7 @@ sum(is.na(data))
 sapply(data, function(x) sum(is.na(x)))
 ```
 
-Lets plot this info
+Let's plot this info.
 
 ```{r} 
 na_counts = sapply(data, function(x) sum(is.na(x))) 
@@ -162,7 +163,7 @@ ggplot(aux_df) +
 
 ```
 
-As our missing values are in numerical variables we will try imputation methods
+As our missing values are in numerical variables, we will try imputation methods.
 
 ```{r}
 # Loop through each column
@@ -175,7 +176,7 @@ for (col in names(data)) {
 
 ```
 
-## Feature Engineering 
+## Feature Engineering.
 
 ```{r}
 # Create a life expectancy category based on cut-offs
@@ -184,18 +185,18 @@ data$Life_Expectancy_Category = cut(data$Life.expectancy,
                                      labels = c("Low", "Medium", "High"))
 # Average vaccination rates.
 data$AVG_vac = rowMeans(cbind(data$Hepatitis.B,data$Polio,data$Diphtheria))
-# we remove individual vac rates 
+# We remove individual vac rates 
 data$Hepatitis.B = NULL
 data$Polio = NULL
 data$Diphtheria = NULL
-# avoid multicollinearity with BMI
+# Avoid multicollinearity with BMI
 data$thinness..1.19.years = NULL
 data$thinness.5.9.years = NULL
 
 
 ```
 
-## Visualization Tools Exploring distributions and relationships. 
+## Visualization Tools. Exploring distributions and relationships.
 
 GDP map
 
@@ -213,11 +214,9 @@ ggplot(world_gdp) +
   theme_minimal() 
 ```
 
+  **Correlation analysis**
 
-  **Correlation analisis**
-
-Using a correlation plot `corrplot`, we visualize the strength and direction of these associations, we also added a heat map to see better 
-what pairs are related 
+Using a correlation plot `corrplot`, we visualize the strength and direction of these associations- We also added a heat map to see better what pairs are related.
 
 ```{r}
 numeric_cols =select(data,-Country, -Status,-Life_Expectancy_Category)
@@ -229,9 +228,9 @@ corrplot(correlations, number.cex = .9, method = "square",
 heatmap(cor(numeric_cols))
 ```
 
-We can see we have some strong positive correlation along the diagonal and strong negative correlation in the corner 
+We can see that we have some strong positive correlation along the diagonal and strong negative correlation in the corner. 
 
-Lets see the distribution of `Life Expectancy` for developed and developing countries 
+Let's see the distribution of `Life Expectancy` for developed and developing countries. 
 
 ```{r}
 ggplot(data) +
@@ -241,11 +240,11 @@ ggplot(data) +
        x = "Life Expectancy", y = "Count") +
   theme_minimal() +
   scale_fill_manual(values = c("lightgreen", "lightpink")) +
-  transition_states(Status, transition_length = 0.5, state_length = 1) +
+  transition_states(Status, transition_length = 0.5, state_length = 2) +
   labs(subtitle = "Development Level: {closest_state}")
 ```
 
-lets see how is `Schooling` correlated with `Life Expectancy` and where are the developed countries alocated 
+Now, we will see how is `Schooling` correlated with `Life Expectancy`, and where are the developed countries allocated.
 
 ```{r}
 ggplot(data) +
@@ -258,7 +257,7 @@ ggplot(data) +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-lets see how the `Life Expectancy` has shifted to higher values over the years 
+We'll see how the `Life Expectancy` has shifted to higher values over the years. 
 
 ```{r}
 data$Year = as.integer(data$Year)
@@ -272,12 +271,11 @@ ggplot(data) +
   ease_aes('linear')
 ```
 
-We can see how the red values slowly disappear and how the plot shifts to the right 
-
+We can see how the red values slowly disappear, and how the plot shifts to the right.
 
 ## Outlier Detection 
 
-As we are using a highly reliable dataset outliers may not necessarily be errors or irrelevant data points. Instead, they might represent meaningful extreme values so we are going to only to erase the ouliers that are impossible for example the categories that are over 1000 and have +1000 values
+As we are using a highly reliable dataset, outliers may not necessarily be errors or irrelevant data points. Instead, they might represent meaningful extreme values so we are going to only to erase the outliers that are impossible, for example, the categories that are over 1000 and have +1000 values.
 
 ```{r}
 data = data[data$infant.deaths <= 1000, ]
@@ -287,8 +285,7 @@ data = data[data$under.five.deaths <= 1000, ]
 
   **Using boxplots**
 
-Now we will check for outliers that could ruin our analysis 
-note that we can only have outliers in our numerical features
+Now, we will check for outliers that could ruin our analysis. Note that we can only have outliers in our numerical features.
 
 ```{r} 
 numeric_cols =select(data,-Country, -Status,-Life_Expectancy_Category)
@@ -333,12 +330,11 @@ outlier_counts = sapply(outliers, sum)
 outlier_counts
 ```
 
-we can not be sure if the data is wrong or a extreme reality so we are going to remove every outlier.
+We can not be sure if the data is wrong or a extreme reality so we are going to remove every outlier.
 
 ```{r}
 data = data[!apply(outliers, 1, any), ]
 ```
-
 
 ## PCA
 
@@ -346,9 +342,9 @@ Preprocesing for the PCA
 
 ```{r}
 PCA_data = data
-#remove the features we created to do the plots 
+# Remove the features we created to do the plots 
 PCA_data$Life_Expectancy_Category = NULL
-#remove non numerical data
+# Remove non numerical data
 PCA_data$Country = NULL
 PCA_data$Year = NULL
 PCA_data$Status = NULL
@@ -377,9 +373,10 @@ fviz_contrib(pca, choice = "var", axes = 3, fill = "lightgreen", color = "grey",
 # Visualize variable contributions to the second component
 fviz_contrib(pca, choice = "var", axes = 4, fill = "lightcoral", color = "grey", top = 10)
 ```
-we see that PC1 has more variables contributing less while PC2,PC3 and PC4 has one or two variables contributing more for example in PC4 `Total Expenditure` has almost 50% of the contribution
 
-Note that with 4 components we explain 66% of the variability
+We can see that PC1 has more variables whose contribution is small, while in PC2,PC3 and PC4, they all have one or two more contributing variables, for example, in PC4 `Total Expenditure` has almost 50% of the contribution
+
+Note that with 4 components we are able to explain 66% of the variability.
 
 # Rank countries by PCA
 
@@ -424,7 +421,7 @@ print(best_performers)
 
 ```
 
-Lets visualize the top-10 Countries contributions to first component:
+Let's now visualize the top-10 Countries contributions to first component:
 
 ```{r}
 names_order = names[order(get_pca_ind(pca)$contrib[,1],decreasing=T)]
@@ -432,10 +429,10 @@ combined_labels = paste(names_order, data$Year[order(get_pca_ind(pca)$contrib[, 
 
 fviz_contrib(pca, choice = "ind", axes = 1, top=10)+scale_x_discrete(labels=combined_labels)
 ```
-From this we can see that the worst Countries are the ones that are contributing more to the total Variance and that contributions are not equaly distribute through the observations 
 
+From this we can see that the worst Countries are the ones that are contributing more to the total Variance and that contributions are not equally distributed through the observations.
 
-Lets see if PC can help use to predict if a country is developed or developing
+Let's see if PC can help use to predict if a country is developed or developing.
 
 ```{r}
 #2D Data Frame
@@ -453,10 +450,10 @@ ggplot(pca_plot_data, aes(x = -PC1, y = PC2, label = Category, color = Category)
   theme(legend.position = "bottom") +
   geom_text(size = 2, hjust = 0.6, vjust = 0, check_overlap = TRUE)
 ```
-with PC1 and PC2 we can see that we may be able to predict it lets add PC3 and PC4 (as size) to see if helps 
+
+With PC1 and PC2 we can see that we may be able to predict it. Now, we add PC3 and PC4 (as size) to see if this helps.
 
 ```{r}
-#this plot may work slow in some computers however we have try with ours and it worked fine
 #4D data frame
 pca_3d_data = data.frame(
   PC1 = pca$x[, 1],
@@ -491,36 +488,36 @@ legend3d("topright", legend = c("Low", "Medium","High"),
 rglwidget()
 ```
 
-from the 3D plot we see that we could predict the `Life Expectancy` with PC1, PC2, PC3 and PC4 
-and taking into acount that with PC4 we can explain almost up to 66% of the variance we can say that we have successfully reduced the dimensionality from 17 to only 4 
+From the 3D plot, we see that we could predict the `Life Expectancy` with PC1, PC2, PC3 and PC4, 
+and taking into account that with PC4 we can explain almost up to 66% of the variance, we can say that we have successfully reduced the dimensionality from 17 to only 4.
 
 ## Factor Analysis
 
 Factor analysis is a statistical method used to identify underlying relationships between variables by grouping them into "factors," which represent shared patterns making it useful for exploring and modeling complex datasets.
 
-
-FA data preprecesing
+FA data preproccesing
 
 ```{r}
 fa_data = data
-#remove the features we created 
+# Remove the features we created 
 fa_data$Life_Expectancy_Category = NULL
-#remove non numerical data and unimportant data for the FA
+# Remove non numerical data and unimportant data for the FA
 fa_data$Country = NULL
 fa_data$Year = NULL
 fa_data$Status = NULL
-#Check for Multicollinearity
+# Check for Multicollinearity
 cor_matrix = cor(fa_data)
 high_corr = findCorrelation(cor_matrix, cutoff = 0.9)  
 fa_data = fa_data[, -high_corr]
 ```
 
-lets see the scree plot 
+Let's check the scree plot:
 
 ```{r}
 screepl = fa.parallel(fa_data,fm = "ml",fa = "fa")
 ```
-perform FA and lets plot the loadings and Uniqueness to better understand what we have 
+
+We perform FA and plot the loadings and Uniqueness to better understand what we have. 
 
 ```{r}
 fa_result = factanal(fa_data, factors = 6, rotation="varimax", scores="Bartlett", lower = 0.01)
@@ -530,12 +527,10 @@ fa_result
 cbind(fa_result$loadings, "Uniqueness" = fa_result$uniquenesses)
 ```
 
-
-
-Loading close to +-1 means that that variable is really well explained by that specific factor a loading close to 0 means that is bad explained, this means that `Life expectancy` is really well explained by factor 1 but not so good by factor 4.
-If we focus on the uniqueness we can see that for example the proportion of variance we can not explain from `Life Expectancy` is 8% 
-however for `Population` is 89% which means that it can not be explained by a linear combination of these factors. We see that our model with 4 factors can explain 52% of the variance therefore we will need to add more factors for better representing the model which is no really ideal.
-There are some variables that seems to be behave independently on the dataset like`Population`and `Measle` as even using 6 factors their uniqueness is still high. so we are going to try again without these variables 
+Loading close to +-1 means that that variable is really well explained by that specific factor. A loading close to 0 means that is bad explained. This indicates then that `Life expectancy` is really well explained by factor 1 but not so good by factor 4.
+If we focus on the uniqueness, we can see that, for example, the proportion of variance which we can not explain from `Life Expectancy` is 8% 
+However, for `Population` it is 89%, which means that it can not be explained by a linear combination of these factors. We see that our model with 4 factors can explain 52% of the variance. Therefore, we will need to add more factors for better representing the model, which is not really ideal.
+There are some variables that seem to be behave independently on the dataset like`Population`and `Measle`, as even using 6 factors their uniqueness is still high. So we are going to try again without these variables 
 
 ```{r}
 fa_data$AVG_vac = NULL
@@ -550,17 +545,15 @@ fa_result2
 cbind(fa_result2$loadings, "Uniqueness" = fa_result2$uniquenesses)
 ```
 
-We see now that without these variables we get better proportion of variance explained (61%) with less Factors 3
+We now see that without these variables, we get better proportion of variance explained (61%) with less Factors 3.
 
 ## Conclusion of FA
 
-In our `factor analysis`, we observed that certain variables, such as `Population` and `Measles`, consistently showed high uniqueness values across various models. This suggests that these variables behave independently and are not well-explained by a linear combination of factors derived from the other variables in the dataset. Consequently, we excluded these variables to improve model coherence and the overall explained variance.
+In our factor analysis, we observed that certain variables, such as `Population` and `Measles`, consistently showed high uniqueness values across various models. This suggests that these variables behave independently and are not well-explained by a linear combination of factors derived from the other variables in the dataset. Consequently, we excluded these variables to improve model coherence and the overall explained variance.
 After removing these independent variables, our refined model with 3 factors was able to explain 61% of the total variance in the dataset, a notable improvement with fewer factors. This indicates a more efficient model structure, with cohesive underlying patterns among the remaining variables.
 For the specific purpose of predicting `Life Expectancy`, we found that using only 2 factors in the model could explain up to 94% of the variance in this variable
 
 ## Clustering tools
-
-
 
 
 
